@@ -43,4 +43,4 @@ _DeviceLocalParamPool = dict() # connects a device hash to local parameters crea
 _DeviceCountPool = dict() # connects a device name to a device count 
 _BoundingBoxPool = dict() # connects a SREF name to its bounding box
 
-from plotly_viewers import *
+from .plotly_viewers import *
