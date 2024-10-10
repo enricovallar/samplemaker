@@ -13,7 +13,7 @@ the European Research Council (ERC) under the European Union’s Horizon 2020 re
 
 ### How do I get set up? ###
 
-* Install via pip (pip install git+https://github.com/lmidolo/samplemaker)
+* Install via pip (pip install git+https://github.com/enricovallar/samplemaker)
 * or clone the repository and set PYTHONPATH to the src/ subfolder
 * If you use conda, create a new environment with Python 3.8
     conda create --name myenv python=3.8
