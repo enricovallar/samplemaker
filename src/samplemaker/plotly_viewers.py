@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+Basic functions to plot and inspect geometries.
+
+These are very basic plotting functions to speed up the development of masks
+and circuits. They can be used instead of writing and opening GDS files external
+viewers. 
+"""
+
 import samplemaker.shapes as smsh
 from samplemaker.shapes import GeomGroup
 from samplemaker.devices import Device, DevicePort

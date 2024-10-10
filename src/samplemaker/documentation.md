@@ -23,6 +23,11 @@ Base modules include:
         Functions (based on [`matplotlib`][matplotlib]) for the graphical inspection the layout. 
 [matplotlib]: https://matplotlib.org/
 
+* `samplemaker.plotly_viewers` 
+        Functions (based on [`matplotlib`][matplotlib]) for the graphical inspection the layout. 
+[matplotlib]: https://matplotlib.org/
+
+
 Advanced modules for nanophotonics include:
         
 * `samplemaker.phc`
