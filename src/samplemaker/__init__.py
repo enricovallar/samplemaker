@@ -24,7 +24,8 @@ from typing import (  # noqa: F401
     Optional, Set, Tuple, Type, TypeVar, Union,
 )
 
-__version__ = "5.4.3"
+
+__version__ = "5.4.4"
     
 __pdoc__: Dict[str, Union[bool, str]] = {}
 __pdoc__["samplemaker.Tutorials"]=False
@@ -41,3 +42,5 @@ _DevicePool = dict() # connects a device hash to a SREF to be instantiated
 _DeviceLocalParamPool = dict() # connects a device hash to local parameters created by the call to geom()
 _DeviceCountPool = dict() # connects a device name to a device count 
 _BoundingBoxPool = dict() # connects a SREF name to its bounding box
+
+from plotly_viewers import *
