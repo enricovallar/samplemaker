@@ -81,7 +81,7 @@ def __GetDevicePortsPatchesPlotly(dev: Device):
     return patches
 
 
-def GeomViewPlotly(grp: GeomGroup):
+def GeomView(grp: GeomGroup):
     """
     Plots a geometry in a Plotly window.
     Only polygons and circles are displayed. Most elements are either 
@@ -103,7 +103,12 @@ def GeomViewPlotly(grp: GeomGroup):
     for patch in patches:
         fig.add_trace(patch)
 
-    fig.update_layout(showlegend=False, title="Geometry View", xaxis=dict(scaleanchor="y", scaleratio=1))
+    fig.update_layout(
+        showlegend=False, 
+        title="Geometry View", 
+        xaxis=dict(scaleanchor=None),  # Allow flexible zoom
+        yaxis=dict(scaleratio=None)    # Allow flexible zoom
+    )
     fig.show()
 
 
@@ -131,11 +136,12 @@ def __update_scrollbar_plotly(val):
         title=dev._name,
         xaxis=dict(range=[bb.llx, bb.urx()]),
         yaxis=dict(range=[bb.lly, bb.ury()]),
+        showlegend=False
     )
     _ViewerCurrentFigure.show()
 
 
-def DeviceInspectPlotly(devcl: Device):
+def DeviceInspect(devcl: Device):
     """
     Interactive display of devices defined from `samplemaker.devices`.
     The device is rendered according to the default parameters.
@@ -174,7 +180,6 @@ def DeviceInspectPlotly(devcl: Device):
         title=dev._name,
         xaxis=dict(range=[bb.llx, bb.urx()]),
         yaxis=dict(range=[bb.lly, bb.ury()]),
-        xaxis_scaleanchor="y",
         showlegend=False
     )
     fig.show()
@@ -184,11 +189,9 @@ def DeviceInspectPlotly(devcl: Device):
     sliders = []
     for param in dev._p.keys():
         slider = go.layout.Slider(
-            min=0,
-            max=dev._p[param] * 10 if dev._p[param] > 0 else 1,
-            step=1 if dev._ptype[param] == int else dev._p[param] / 10,
-            value=dev._p[param],
-            marks={str(i): str(i) for i in range(0, int(dev._p[param] * 10) + 1, int(dev._p[param] / 10))}
+            currentvalue={"visible": True, "prefix": param + ": "},
+            steps=[{'label': str(i), 'value': i} for i in range(0, int(dev._p[param] * 10) + 1, int(dev._p[param] / 10))],
+            value=dev._p[param]
         )
         sliders.append(slider)
 
