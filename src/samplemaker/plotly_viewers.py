@@ -1,91 +1,178 @@
-# -*- coding: utf-8 -*-
-"""
-Basic functions to plot and inspect geometries.
-
-These are very basic plotting functions to speed up the development of masks
-and circuits. They can be used instead of writing and opening GDS files external
-viewers. 
-"""
-
+import threading
+import plotly.graph_objects as go
+from dash import dcc, html, Input, Output
+import dash
 import samplemaker.shapes as smsh
 from samplemaker.shapes import GeomGroup
 from samplemaker.devices import Device, DevicePort
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
-
-_ViewerCurrentSliders = []
-_ViewerCurrentDevice = None
-_ViewerCurrentFigure = None
+from dash.exceptions import PreventUpdate
+import random
 
 
 def __GeomGetPatchesPlotly(grp: "GeomGroup"):
     prop_cycle = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
     patches = []
+    
     for geom in grp.group:
         geomtype = type(geom)
         if geom.layer < 0:
             continue
+        
         lcolor = prop_cycle[np.mod(geom.layer, 10)]
+        
         if geomtype == smsh.Poly:
             N = int(len(geom.data) / 2)
             xy = np.reshape(geom.data, (N, 2))
             patches.append(go.Scatter(x=xy[:, 0], y=xy[:, 1], fill="toself", line_color=lcolor))
-            continue
-        if geomtype == smsh.Circle:
-            patches.append(go.Scatter(x=[geom.x0], y=[geom.y0], marker=dict(size=geom.r*2, color=lcolor), mode="markers"))
-            continue
-        if geomtype == smsh.Path:
+            
+        elif geomtype == smsh.Circle:
+            theta = np.linspace(0, 2 * np.pi, 100)
+            x_circle = geom.x0 + geom.r * np.cos(theta)
+            y_circle = geom.y0 + geom.r * np.sin(theta)
+            patches.append(go.Scatter(x=x_circle, y=y_circle, fill="toself", line_color=lcolor))
+
+        elif geomtype == smsh.Path:
             xy = np.transpose([geom.xpts, geom.ypts])
-            patches.append(go.Scatter(x=xy[:, 0], y=xy[:, 1], line=dict(color=lcolor)))
-            continue
-        if geomtype == smsh.Text:
-            print("text display is not supported, please convert to polygon first.")
-            continue
-        if geomtype == smsh.SRef:
-            continue
-        if geomtype == smsh.ARef:
-            continue
-        if geomtype == smsh.Ellipse:
-            patches.append(go.Scatter(x=[geom.x0], y=[geom.y0], marker=dict(size=geom.r*2, color=lcolor), mode="markers"))
-            continue
-        if geomtype == smsh.Ring:
-            gpl = geom.to_polygon()
-            geom = gpl.group[0]
-            N = int(len(geom.data) / 2)
-            xy = np.reshape(geom.data, (N, 2))
-            patches.append(go.Scatter(x=xy[:, 0], y=xy[:, 1], fill="toself", line_color=lcolor))
-            continue
-        if geomtype == smsh.Arc:
-            gpl = geom.to_polygon()
-            geom = gpl.group[0]
-            N = int(len(geom.data) / 2)
-            xy = np.reshape(geom.data, (N, 2))
-            patches.append(go.Scatter(x=xy[:, 0], y=xy[:, 1], fill="toself", line_color=lcolor))
-            continue
+            patches.append(go.Scatter(x=xy[:, 0], y=xy[:, 1], mode='lines', line=dict(color=lcolor)))
+
+        elif geomtype == smsh.Ellipse:
+            theta = np.linspace(0, 2 * np.pi, 100)
+            x_ellipse = geom.x0 + geom.r * np.cos(theta)
+            y_ellipse = geom.y0 + geom.r1 * np.sin(theta)
+            patches.append(go.Scatter(x=x_ellipse, y=y_ellipse, fill="toself", line_color=lcolor))
+
+        elif geomtype == smsh.Ring:
+            outer_circle = geom.r * np.column_stack((np.cos(np.linspace(0, 2 * np.pi, 100)), np.sin(np.linspace(0, 2 * np.pi, 100))))
+            inner_circle = geom.r1 * np.column_stack((np.cos(np.linspace(0, 2 * np.pi, 100)), np.sin(np.linspace(0, 2 * np.pi, 100))))
+            patches.append(go.Scatter(x=outer_circle[:, 0], y=outer_circle[:, 1], fill="toself", line_color=lcolor))
+            patches.append(go.Scatter(x=inner_circle[:, 0], y=inner_circle[:, 1], fill="toself", line_color="white"))
+
+        elif geomtype == smsh.Arc:
+            theta = np.linspace(geom.start_angle, geom.end_angle, 100)
+            x_arc = geom.x0 + geom.r * np.cos(theta)
+            y_arc = geom.y0 + geom.r * np.sin(theta)
+            patches.append(go.Scatter(x=x_arc, y=y_arc, mode='lines', line=dict(color=lcolor)))
+            
     return patches
 
 
 def __GetPortPatchesPlotly(port: DevicePort):
     if port.name == "":
         return []
-    patches = [go.Scatter(x=[port.x0], y=[port.y0], mode="markers", marker=dict(symbol="arrow-bar-up", size=12))]
-    return patches
+    return [go.Scatter(x=[port.x0], y=[port.y0], mode="markers", marker=dict(symbol="arrow-bar-up", size=12))]
 
 
 def __GetDevicePortsPatchesPlotly(dev: Device):
     patches = []
     for port in dev._ports.values():
         patches += __GetPortPatchesPlotly(port)
-
     return patches
+
+
+def setup_layout(app, dev):
+    global _ViewerCurrentDevice
+    _ViewerCurrentDevice = dev
+
+    geom = _ViewerCurrentDevice.run().flatten()
+
+    fig = go.Figure()
+    patches = __GeomGetPatchesPlotly(geom)
+    patches += __GetDevicePortsPatchesPlotly(_ViewerCurrentDevice)
+
+    for patch in patches:
+        fig.add_trace(patch)
+
+    bb = geom.bounding_box()
+    fig.update_layout(
+        title=_ViewerCurrentDevice._name,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        xaxis=dict(range=[bb.llx, bb.urx()], scaleanchor="y", scaleratio=1, showgrid=True, gridcolor='LightGray', zeroline=False),
+        yaxis=dict(range=[bb.lly, bb.ury()], showgrid=True, gridcolor='LightGray', zeroline=False),
+        showlegend=False
+    )
+
+    sliders = []
+    for param in _ViewerCurrentDevice._p.keys():
+        minv = 0
+        maxv = _ViewerCurrentDevice._p[param] * 10 if _ViewerCurrentDevice._p[param] > 0 else 1
+        prange = _ViewerCurrentDevice._prange[param]
+        if prange[1] != np.inf:
+            maxv = prange[1]
+        if prange[0] != 0:
+            minv = prange[0]
+        step = _ViewerCurrentDevice._p[param] / 10 if _ViewerCurrentDevice._ptype[param] != int else 1
+
+        slider = dcc.Slider(
+            id=f'slider-{param}',
+            min=minv,
+            max=maxv,
+            value=_ViewerCurrentDevice._p[param],
+            step=step,
+            marks=None,
+            tooltip={"placement": "bottom", "always_visible": True}
+        )
+        sliders.append(html.Div([html.Label(f'{param}:'), slider]))
+
+    app.layout = html.Div([
+        html.H1(f"Device: {_ViewerCurrentDevice._name}"),
+        dcc.Graph(id='device-graph', figure=fig),
+        html.Div(id='slider-container', children=sliders)
+    ], style={"background-color": "white", "padding": "20px", "border-radius": "10px", "height": "800px", "overflowY": "scroll", "text-align": "center"})
+
+
+def DeviceInspect(devcl: Device):
+    # Create a new app for each device inspection
+    app = dash.Dash(__name__, suppress_callback_exceptions=True)
+    setup_layout(app, devcl.build())
+
+    @app.callback(
+        Output('device-graph', 'figure'),
+        [Input(f'slider-{param}', 'value') for param in _ViewerCurrentDevice._p.keys()]
+    )
+    def update_graph(*slider_values):
+        if _ViewerCurrentDevice is None:
+            raise PreventUpdate
+
+        dev = _ViewerCurrentDevice
+        for param, value in zip(dev._p.keys(), slider_values):
+            dev.set_param(param, value)
+
+        dev.use_references = False
+        dev.initialize()
+        geom = dev.run()
+
+        fig = go.Figure()
+        patches = __GeomGetPatchesPlotly(geom)
+        patches += __GetDevicePortsPatchesPlotly(dev)
+
+        for patch in patches:
+            fig.add_trace(patch)
+
+        bb = geom.bounding_box()
+        fig.update_layout(
+            title=dev._name,
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            xaxis=dict(range=[bb.llx, bb.urx()], scaleanchor="y", scaleratio=1, showgrid=True, gridcolor='LightGray', zeroline=False),
+            yaxis=dict(range=[bb.lly, bb.ury()], showgrid=True, gridcolor='LightGray', zeroline=False),
+            showlegend=False
+        )
+
+        return fig
+
+    # Assign a unique port to avoid conflicts
+    port = random.randint(8050, 8099)
+
+    # Run the app in a new thread
+    threading.Thread(target=app.run_server, kwargs={'port': port, 'debug': True, 'use_reloader': False}).start()
 
 
 def GeomView(grp: GeomGroup):
     """
     Plots a geometry in a Plotly window.
-    Only polygons and circles are displayed. Most elements are either 
-    ignored or converted to polygon.
+    Only polygons, circles, paths, ellipses, rings, and arcs are displayed.
     No flattening is performed, thus structure references are not displayed.
 
     Parameters
@@ -96,7 +183,6 @@ def GeomView(grp: GeomGroup):
     Returns
     -------
     None.
-
     """
     patches = __GeomGetPatchesPlotly(grp)
     fig = go.Figure()
@@ -106,93 +192,9 @@ def GeomView(grp: GeomGroup):
     fig.update_layout(
         showlegend=False, 
         title="Geometry View", 
-        xaxis=dict(scaleanchor=None),  # Allow flexible zoom
-        yaxis=dict(scaleratio=None)    # Allow flexible zoom
+        xaxis=dict(scaleanchor="y", scaleratio=1, showgrid=True, gridcolor='LightGray', zeroline=False),
+        yaxis=dict(showgrid=True, gridcolor='LightGray', zeroline=False),
+        paper_bgcolor="white",  # Background color for the outer area
+        plot_bgcolor="white"    # Background color for the plot area
     )
     fig.show()
-
-
-def __update_scrollbar_plotly(val):
-    global _ViewerCurrentDevice
-    global _ViewerCurrentSliders
-    global _ViewerCurrentFigure
-
-    dev = _ViewerCurrentDevice
-    for slider, param in zip(_ViewerCurrentSliders, dev._p.keys()):
-        dev.set_param(param, slider.value)
-
-    dev.use_references = False
-    dev.initialize()
-    geomE = dev.run()
-    bb = geomE.bounding_box()
-    patches = __GeomGetPatchesPlotly(geomE)
-    patches += __GetDevicePortsPatchesPlotly(dev)
-
-    _ViewerCurrentFigure.data = []  # clear old data
-    for patch in patches:
-        _ViewerCurrentFigure.add_trace(patch)
-
-    _ViewerCurrentFigure.update_layout(
-        title=dev._name,
-        xaxis=dict(range=[bb.llx, bb.urx()]),
-        yaxis=dict(range=[bb.lly, bb.ury()]),
-        showlegend=False
-    )
-    _ViewerCurrentFigure.show()
-
-
-def DeviceInspect(devcl: Device):
-    """
-    Interactive display of devices defined from `samplemaker.devices`.
-    The device is rendered according to the default parameters.
-    Additionally, a set of sliders is created to interactively modify 
-    the parameters and observe the changes in real-time.
-    If the device includes ports, they are displayed as blue arrows.    
-    
-    Parameters
-    ----------
-    devcl : samplemaker.devices.Device
-        A device object to be displayed.
-
-    Returns
-    -------
-    None.
-
-    """
-    global _ViewerCurrentDevice
-    global _ViewerCurrentSliders
-    global _ViewerCurrentFigure
-
-    dev = devcl.build()
-    _ViewerCurrentDevice = dev
-    geomE = dev.run()
-    geomE = geomE.flatten()
-
-    patches = __GeomGetPatchesPlotly(geomE)
-    patches += __GetDevicePortsPatchesPlotly(dev)
-
-    fig = go.Figure()
-    for patch in patches:
-        fig.add_trace(patch)
-
-    bb = geomE.bounding_box()
-    fig.update_layout(
-        title=dev._name,
-        xaxis=dict(range=[bb.llx, bb.urx()], scaleanchor="y"),
-        yaxis=dict(range=[bb.lly, bb.ury()], scaleratio=1),
-        showlegend=False
-    )
-    fig.show()
-
-    _ViewerCurrentFigure = fig
-
-    sliders = []
-    for param in dev._p.keys():
-        steps = [go.layout.slider.Step(label=str(i), value=i) for i in range(0, int(dev._p[param] * 10) + 1, int(dev._p[param] / 10))]
-        slider = go.layout.Slider(
-            currentvalue={"visible": True, "prefix": param + ": "},
-            steps=steps
-        )
-        sliders.append(slider)
-
-    _ViewerCurrentSliders = sliders
