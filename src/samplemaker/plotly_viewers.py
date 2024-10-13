@@ -178,8 +178,8 @@ def DeviceInspect(devcl: Device):
     bb = geomE.bounding_box()
     fig.update_layout(
         title=dev._name,
-        xaxis=dict(range=[bb.llx, bb.urx()]),
-        yaxis=dict(range=[bb.lly, bb.ury()]),
+        xaxis=dict(range=[bb.llx, bb.urx()], scaleanchor="y"),
+        yaxis=dict(range=[bb.lly, bb.ury()], scaleratio=1),
         showlegend=False
     )
     fig.show()
@@ -188,10 +188,10 @@ def DeviceInspect(devcl: Device):
 
     sliders = []
     for param in dev._p.keys():
+        steps = [go.layout.slider.Step(label=str(i), value=i) for i in range(0, int(dev._p[param] * 10) + 1, int(dev._p[param] / 10))]
         slider = go.layout.Slider(
             currentvalue={"visible": True, "prefix": param + ": "},
-            steps=[{'label': str(i), 'value': i} for i in range(0, int(dev._p[param] * 10) + 1, int(dev._p[param] / 10))],
-            value=dev._p[param]
+            steps=steps
         )
         sliders.append(slider)
 
