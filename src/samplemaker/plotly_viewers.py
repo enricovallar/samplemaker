@@ -122,7 +122,7 @@ def setup_layout(app, dev):
     ], style={"background-color": "white", "padding": "20px", "border-radius": "10px", "height": "800px", "overflowY": "scroll", "text-align": "center"})
 
 
-def DeviceInspect(devcl: Device):
+def DeviceInspect(devcl: Device, fix_aspect_ratio=True, plot_height=800):
     # Create a new app for each device inspection
     app = dash.Dash(__name__, suppress_callback_exceptions=True)
     setup_layout(app, devcl.build())
@@ -151,13 +151,20 @@ def DeviceInspect(devcl: Device):
             fig.add_trace(patch)
 
         bb = geom.bounding_box()
+        xaxis_config = dict(range=[bb.llx, bb.urx()], showgrid=True, gridcolor='LightGray', zeroline=False)
+        yaxis_config = dict(range=[bb.lly, bb.ury()], showgrid=True, gridcolor='LightGray', zeroline=False)
+
+        if fix_aspect_ratio:
+            xaxis_config.update(scaleanchor="y", scaleratio=1)
+
         fig.update_layout(
             title=dev._name,
             paper_bgcolor="white",
             plot_bgcolor="white",
-            xaxis=dict(range=[bb.llx, bb.urx()], scaleanchor="y", scaleratio=1, showgrid=True, gridcolor='LightGray', zeroline=False),
-            yaxis=dict(range=[bb.lly, bb.ury()], showgrid=True, gridcolor='LightGray', zeroline=False),
-            showlegend=False
+            xaxis=xaxis_config,
+            yaxis=yaxis_config,
+            showlegend=False,
+            height=plot_height  # Set the height of the plot
         )
 
         return fig
@@ -169,7 +176,7 @@ def DeviceInspect(devcl: Device):
     threading.Thread(target=app.run_server, kwargs={'port': port, 'debug': True, 'use_reloader': False}).start()
 
 
-def GeomView(grp: GeomGroup):
+def GeomView(grp: GeomGroup, fix_aspect_ratio=True, plot_height=800):
     """
     Plots a geometry in a Plotly window.
     Only polygons, circles, paths, ellipses, rings, and arcs are displayed.
@@ -179,6 +186,10 @@ def GeomView(grp: GeomGroup):
     ----------
     grp : samplemaker.shapes.GeomGroup
         The geometry to be displayed.
+    fix_aspect_ratio : bool, optional
+        If True, the plot will have an aspect ratio of 1:1. If False, the aspect ratio will be auto.
+    plot_height : int, optional
+        The height of the plot in pixels. Default is 800.
 
     Returns
     -------
@@ -189,12 +200,19 @@ def GeomView(grp: GeomGroup):
     for patch in patches:
         fig.add_trace(patch)
 
+    xaxis_config = dict(showgrid=True, gridcolor='LightGray', zeroline=False)
+    yaxis_config = dict(showgrid=True, gridcolor='LightGray', zeroline=False)
+
+    if fix_aspect_ratio:
+        xaxis_config.update(scaleanchor="y", scaleratio=1)
+
     fig.update_layout(
-        showlegend=False, 
-        title="Geometry View", 
-        xaxis=dict(scaleanchor="y", scaleratio=1, showgrid=True, gridcolor='LightGray', zeroline=False),
-        yaxis=dict(showgrid=True, gridcolor='LightGray', zeroline=False),
+        showlegend=False,
+        title="Geometry View",
+        xaxis=xaxis_config,
+        yaxis=yaxis_config,
         paper_bgcolor="white",  # Background color for the outer area
-        plot_bgcolor="white"    # Background color for the plot area
+        plot_bgcolor="white",   # Background color for the plot area
+        height=plot_height      # Set the height of the plot
     )
     fig.show()
